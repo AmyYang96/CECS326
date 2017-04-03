@@ -20,7 +20,7 @@
 #include <stdbool.h> // For bool
 #include <time.h>
 
-
+bool end = false;
 struct criticalRegion /* Defines "structure" of shared memory */
 {
     int manager[20]; //holds the location of fish and pellets
@@ -43,7 +43,7 @@ void convertNumtoCoord(int position, int index, char swimMill_grid[length][lengt
 
 int main(int argc, char  *argv[])
 {
-    signal(SIGINT, interruptSignal);
+	
    
     //alarm(10);
 
@@ -74,71 +74,67 @@ int main(int argc, char  *argv[])
     }
     
     sharedMemory->pellet_counter=0;//initialize pellet counter
-    alarm(10);
-    pid_t fishPID = fork();
+	signal(SIGINT, interruptSignal);//watch for interrupt signal
+	signal(SIGALRM, exitOnAlarm);//watch for alarm signa;
+	alarm(30);
+	
+    pid_t fishPID = fork();//fork fish process
     if(fishPID==0)
     {
-		signal(SIGALRM, exitOnAlarm);
-        execv("fish", argv);//fork fish process
+		execv("fish", argv);
     }
-    else
-    {
-		signal(SIGALRM, exitOnAlarm);
-        pid_t printSwimMill = fork(); //prints grid
-        if (printSwimMill==0)
-        {
-			
-            
-            while (1)
-            {
-                updateGrid(swimMill_grid);//update and print grid
-                printf("\n");
-                sleep(1);
-            }
-        }
-        else
-        {
-            while(1)
-            {
-                pid_t pellet_pid=fork(); //fork pellets
-                if(pellet_pid==0)
-                {
-                    sharedMemory->pellet_counter+=1;//increment counter
-                    execv("pellet",argv);
-                    
-                }
-                
-                while (sharedMemory->pellet_counter==19)//limits number of pellets
-                {
-                    sleep(2);
-                }
-                //drop pellet at different times
-                srand(time(NULL));
-               sleep(rand()%10);
-            }
-        }
-    }
+	
+	pid_t printSwimMill = fork(); //prints grid
+	if (printSwimMill==0)
+	{
+		while (1)
+		{
+			updateGrid(swimMill_grid);//update and print grid
+			printf("\n");
+			sleep(1);
+		}
+	}
+	
+	while(1)
+	{
+		pid_t pellet_pid=fork(); //fork pellets
+		if(pellet_pid==0)
+		{
+			execv("pellet",argv);
+		}
+		
+		while (sharedMemory->pellet_counter>19)//limits number of pellets
+		{
+			sleep(2);
+		}
+		//drop pellet at different times
+		srand(time(NULL));
+	   sleep(rand()%10);
+	}
 }
 
-//
+
+
+//coonvert integer location to grid coordinate
 void convertNumtoCoord(int position, int index, char swimMill_grid[length][length])
 {
     if (position >0)
     {
         int x = position%10; //one's digit is x coordinate
-        int y  = (position - x)/10;
+        int y  = (position - x)/10;//ten's is y coordinate
         
         if (index == 0)
         {
-            swimMill_grid [y][x]='f';
+            swimMill_grid [y][x]='f'; //label fish
         }
         else
         {
-            swimMill_grid [y][x]='p';
+            swimMill_grid [y][x]='p';//label pellet
         }
     }
 }
 
+//print grid
 void printGrid(char swimMill_grid[length][length])
 {
     for (int i=0; i < length; i++)
@@ -156,52 +152,53 @@ void printGrid(char swimMill_grid[length][length])
 }
 
 
-
+//update grid and print it
 void updateGrid(char swimMill_grid[length][length])
 {
     
-    for (int i = 0; i < 10; i++) {
-        for (int j = 0; j < 10; j++) {
+    for (int i = 0; i < 10; i++) //clear fish and pellet locations to avoid repeats
+	{
+        for (int j = 0; j < 10; j++)
+		{
             swimMill_grid[i][j] = '~';
         }
     }
     
-    for (int i=0; i<20; i++)
+    for (int i=0; i<20; i++)//put fish and pellets in grid
     {
         convertNumtoCoord(sharedMemory->manager[i], i, swimMill_grid);
     }
-    printGrid(swimMill_grid);
+    printGrid(swimMill_grid); //print grid
     
 }
 
 
-
+//Exits when there is a keyboard interrupt ^C
 void interruptSignal()
 {
     printf("\nSwim mill died due to interruption. Swim mill PID:  %d ", getpid());
-    shmdt(sharedMemory);
+	
+	//Detach shared memory
+	shmdt(sharedMemory);
     shmctl(sharedMemoryID, IPC_RMID, NULL);
-    exit(0);
+	
+	exit(0);//exit swim mill
 
 }
 
-
+//Exit after alarm goes off
 void exitOnAlarm()
 {
-    printf("\nSwim mill died after 30 seconds. Swim mill PID:  %d ", getpid());
-    shmdt(sharedMemory);
+    printf("\nSwim mill died after 30 seconds. Swim mill PID:  %d \n", getpid());
+	
+	//Detach shared memory
+	shmdt(sharedMemory);
     shmctl(sharedMemoryID, IPC_RMID, NULL);
-    exit(0);
+	
+	kill(0,SIGTERM);//kill fish and pellets
+	exit(0);//exit swim mill
 
 }
-
-
-void raiseAlarm()
-{
-    raise(SIGINT);
-}
-
-
 
 
 

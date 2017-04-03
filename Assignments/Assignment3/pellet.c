@@ -14,7 +14,7 @@
 //prototypes
 void down(int locationIndex);
 void interruptSignal(); //Exits when there is a keyboard interrupt ^C
-void exitOnAlarm();
+void exitOnAlarm(); //Exit after alarm goes off
 
 struct criticalRegion /* Defines "structure" of shared memory */
 {
@@ -30,7 +30,7 @@ int locationIndex; //the index of the array in the shared memory that holds the 
 int main(int argc, char  *argv[])
 {
     signal(SIGINT, interruptSignal);
-    signal(SIGALRM, exitOnAlarm);
+    signal(SIGTERM, exitOnAlarm);
     /*******************Create shared memory segment******************************/
     sharedMemory=malloc(sizeof (struct criticalRegion)); //Allocate memory for struct
     
@@ -47,7 +47,7 @@ int main(int argc, char  *argv[])
     sharedMemory=shmat(sharedMemoryID,NULL,0);
     /************************************************************/
     
-    locationIndex=1; //initialize as index 1
+    locationIndex=-1; //initialize as index 1
     
     for (int i=1; i<20; i++)//iterate through array to find empty slot
     {
@@ -57,7 +57,15 @@ int main(int argc, char  *argv[])
             break;
         }
     }
-    
+	if(locationIndex==-1)
+	{
+		//Detach shared memory
+		shmdt(sharedMemory);
+		shmctl(sharedMemoryID, IPC_RMID, NULL);
+		
+		exit(0);
+	}
+	sharedMemory->pellet_counter+=1;//increment counter
     //generate random location
     srand(time(NULL));
     sharedMemory->manager[locationIndex]=rand()%10 + 10*(rand()%10);
@@ -106,7 +114,7 @@ void down(int locationIndex)
 //Exits when there is a keyboard interrupt ^C
 void interruptSignal()
 {
-    printf("\nPellet died due to interruption. Pellet PID:  %d ", getpid());
+    printf("\nPellet died due to interruption. Pellet PID:  %d \n", getpid());
     
     //Detach shared memory
     shmdt(sharedMemory);
@@ -115,13 +123,14 @@ void interruptSignal()
     
 }
 
+//Exit after alarm goes off
 void exitOnAlarm()
 {
-    printf("\nPellet died after 30 second alarm on swim mill. Pellet PID:  %d ", getpid());
+    printf("\nPellet died after 30 second alarm on swim mill. Pellet PID:  %d \n", getpid());
     
     //Detach shared memory
     shmdt(sharedMemory);
     shmctl(sharedMemoryID, IPC_RMID, NULL);
-    exit(0);//exit
+	exit(0);//exit
     
 }

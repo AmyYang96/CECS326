@@ -30,7 +30,7 @@ int locationIndex; //the index of the array in the shared memory that holds the 
 int main(int argc, char  *argv[])
 {
     signal(SIGINT, interruptSignal);
-    signal(SIGALRM, exitOnAlarm);
+	signal(SIGTERM, exitOnAlarm);
     
     /*******************Create shared memory segment******************************/
     sharedMemory=malloc(sizeof (struct criticalRegion)); //Allocate memory for struct
@@ -119,7 +119,7 @@ void moveTowardNearestPellet()
 //Exits when there is a keyboard interrupt ^C
 void interruptSignal()
 {
-    printf("\nFish died due to interruption. Fish PID:  %d ", getpid());
+    printf("\nFish died due to interruption. Fish PID:  %d \n", getpid());
     
     //Detach shared memory
     shmdt(sharedMemory);
@@ -130,12 +130,12 @@ void interruptSignal()
 
 void exitOnAlarm()
 {
-    printf("\nFish after 30 seconds. Fish PID:  %d ", getpid());
+    printf("\nFish died after 30 seconds. Fish PID:  %d \n", getpid());
     
     //Detach shared memory
     shmdt(sharedMemory);
     shmctl(sharedMemoryID, IPC_RMID, NULL);
-    exit(0);//exit
+	exit(0);//kill(0,SIGTERM);//exit(0);//exit
     
 }
 
